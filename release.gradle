@@ -1,0 +1,38 @@
+apply plugin: 'maven-publish'
+apply plugin: 'com.jfrog.bintray'
+
+task sourcesJar(type: Jar, dependsOn: project.classes) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+task javadocJar(type: Jar, dependsOn: project.javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+}
+
+publishing {
+    publications {
+        "$project.name"(MavenPublication) {
+            groupId = group
+            artifactId = project.name
+
+            from components.java
+            artifact sourcesJar
+            artifact javadocJar
+        }
+    }
+}
+
+bintray {
+    user = System.getenv('BINTRAY_USER')
+    key = System.getenv('BINTRAY_KEY')
+    publications = [project.name]
+    publish = true
+    pkg {
+        repo = 'libs'
+        name = project.name
+        vcsUrl = 'https://github.com/pjozsef/WeightedRandom.git'
+        licenses = ['MIT']
+    }
+}
