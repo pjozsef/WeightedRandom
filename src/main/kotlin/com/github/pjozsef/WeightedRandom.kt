@@ -15,9 +15,9 @@ class WeightedCoin(val trueProbability: Double, val random: Random = Random()) {
     }
 }
 
-class WeightedDie<T>(probabilities: Map<T, Double>, val random: Random = Random()) {
-    constructor(values: List<T>, probabilities: List<Double>, random: Random = Random()) : this(values.zip(probabilities), random)
-    constructor(probabilities: List<Pair<T, Double>>, random: Random = Random()) : this(probabilities.toMap(), random)
+class WeightedDie<T>(probabilities: Map<T, Number>, val random: Random = Random()) {
+    constructor(values: List<T>, probabilities: List<Number>, random: Random = Random()) : this(values.zip(probabilities), random)
+    constructor(probabilities: List<Pair<T, Number>>, random: Random = Random()) : this(probabilities.toMap(), random)
 
     private val n = probabilities.size
     private val alias = IntArray(n)
@@ -25,11 +25,9 @@ class WeightedDie<T>(probabilities: Map<T, Double>, val random: Random = Random(
     private val values: List<T>
 
     init {
-        val probList = probabilities.toList()
-        probList.map { it.second }.let {
-            require(Math.abs(1.0 - it.sum()) <= 0.0001) { "Probabilities must add up to 1.0" }
-            require(it.none { it < 0.0 }) { "Probabilities must not be negative" }
-        }
+        val sumOfProbabilities = probabilities.values.map { it.toDouble() }.sum()
+        val probList = probabilities.mapValues { it.value.toDouble() / sumOfProbabilities }.toList()
+        require(probList.map { it.second }.none { it < 0.0 }) { "Probabilities must not be negative" }
         values = probList.unzip().first
 
         val small = mutableListOf<Int>()

@@ -3,7 +3,7 @@ package com.github.pjozsef
 import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.whenever
 import io.kotlintest.IsolationMode
-import io.kotlintest.data.forall
+import io.kotlintest.data.suspend.forall
 import io.kotlintest.matchers.doubles.plusOrMinus
 import io.kotlintest.shouldBe
 import io.kotlintest.shouldThrow
@@ -80,14 +80,6 @@ class RandomUtilsTest : FreeSpec({
     "weightedDice" - {
         lateinit var die: WeightedDie<String>
         "with invalid constructor parameters" - {
-            "probabilities do not add up to 1.0" {
-                shouldThrow<IllegalArgumentException> {
-                    WeightedDie(mapOf(
-                        "A" to 0.2,
-                        "B" to 0.3
-                    ))
-                }
-            }
             "contains negative probability" {
                 shouldThrow<IllegalArgumentException> {
                     WeightedDie(mapOf(
@@ -98,25 +90,52 @@ class RandomUtilsTest : FreeSpec({
                 }
             }
         }
-        "statistics should reflect probabilities" - {
-            forall(
-                row(listOf(0.5, 0.3, 0.2)),
-                row(listOf(0.8, 0.1, 0.1)),
-                row(listOf(0.0, 0.6, 0.4)),
-                row(listOf(1.0, 0.0, 0.0))
-            ) { percentages ->
-                val values = listOf("A", "B", "C")
-                val probabilities = values.zip(percentages).toMap()
-                die = WeightedDie(probabilities)
-                val rolls = 1_000_000
-                val results = (1..rolls).map { die.roll() }.groupBy { it }.mapValues { it.value.size }
+        "statistics should reflect probabilities" -  {
+            "of weights that add up to 1" {
+                forall(
+                    row(listOf(0.5, 0.3, 0.2)),
+                    row(listOf(0.8, 0.1, 0.1)),
+                    row(listOf(0.0, 0.6, 0.4)),
+                    row(listOf(1.0, 0.0, 0.0))
+                ) { percentages ->
+                    val values = listOf("A", "B", "C")
+                    val probabilities = values.zip(percentages).toMap()
+                    die = WeightedDie(probabilities)
+                    val rolls = 1_000_000
+                    val results = (1..rolls).map { die.roll() }.groupBy { it }.mapValues { it.value.size }
 
-                values.map {
-                    val expected = probabilities.getOrDefault(it, 0.0)
-                    val actual = results.getOrDefault(it, 0).toDouble() / rolls
-                    actual to expected
-                }.forEach { (actual, expected) ->
-                    actual shouldBe (expected plusOrMinus (0.01))
+                    values.map {
+                        val expected = probabilities.getOrDefault(it, 0.0)
+                        val actual = results.getOrDefault(it, 0).toDouble() / rolls
+                        actual to expected
+                    }.forEach { (actual, expected) ->
+                        actual shouldBe (expected plusOrMinus (0.01))
+                    }
+                }
+            }
+
+            "of weights that need to be scaled to 1" {
+                forall(
+                    row(listOf(0.25, 0.15, 0.1), listOf(0.5, 0.3, 0.2)),
+                    row(listOf(0.125, 0.075, 0.05), listOf(0.5, 0.3, 0.2)),
+                    row(listOf(1.6, 0.2, 0.2), listOf(0.8, 0.1, 0.1)),
+                    row(listOf(0, 6, 4), listOf(0.0, 0.6, 0.4)),
+                    row(listOf(1000, 0, 0), listOf(1.0, 0.0, 0.0))
+                ) { percentages: List<Number>, expectedPercentages: List<Number> ->
+                    val rolls = 1_000_000
+                    val values = listOf("A", "B", "C")
+                    val actualDie = createWeightedDie(percentages, values)
+                    val expectedDie = createWeightedDie(expectedPercentages, values)
+                    val actualResults = (1..rolls).map { actualDie.roll() }.groupBy { it }.mapValues { it.value.size }
+                    val expectedResults = (1..rolls).map { expectedDie.roll() }.groupBy { it }.mapValues { it.value.size }
+
+                    values.map {
+                        val expected = expectedResults.getOrDefault(it, 0).toDouble() / rolls
+                        val actual = actualResults.getOrDefault(it, 0).toDouble() / rolls
+                        actual to expected
+                    }.forEach { (actual, expected) ->
+                        actual shouldBe (expected plusOrMinus (0.01))
+                    }
                 }
             }
         }
@@ -140,3 +159,6 @@ class RandomUtilsTest : FreeSpec({
 }) {
     override fun isolationMode() = IsolationMode.InstancePerLeaf
 }
+
+private fun createWeightedDie(percentages: List<Number>, values: List<String>) =
+    values.zip(percentages).toMap().let { WeightedDie(it) }
